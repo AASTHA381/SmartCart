@@ -314,6 +314,70 @@ app.post("/api/decide", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Compare: two products head-to-head, given the user's budget context.
+// ---------------------------------------------------------------------------
+const COMPARE_SYSTEM = `You are a pragmatic personal-finance shopping assistant comparing TWO products for one person.
+Given both products and the person's budget context (discretionary budget, goals, spending patterns), decide which is the better buy for THEM — or neither.
+Weigh value for money, genuine need, budget impact, durability, and their savings goals. Be direct and specific to their numbers.
+Respond with ONLY valid JSON (no markdown) using exactly this schema:
+{
+  "winner": "A" | "B" | "Neither",
+  "headline": "<one short sentence naming your pick>",
+  "recommendation": "<1-2 sentences on why, referencing their budget>",
+  "a": { "verdict": "Buy" | "Wait" | "Don't buy", "note": "<short reason>" },
+  "b": { "verdict": "Buy" | "Wait" | "Don't buy", "note": "<short reason>" },
+  "reasoning": "<2-3 sentence comparison>"
+}`;
+
+app.post("/api/compare", async (req, res) => {
+  if (!process.env.GROQ_API_KEY) {
+    return res.status(500).json({ error: "Server is missing GROQ_API_KEY." });
+  }
+  const input = req.body || {};
+  if (!input.product_a || !input.price_a || !input.product_b || !input.price_b) {
+    return res.status(400).json({ error: "Both products (name + price) are required." });
+  }
+
+  const user = getUser(req.get("x-user-id"));
+  const profile = user?.profile || { income: 0, fixed: [], currency: input.currency || "₹" };
+  const fixedTotal = (profile.fixed || []).reduce((a, f) => a + (Number(f.amount) || 0), 0);
+  const discretionaryBudget = Math.max(0, (Number(profile.income) || 0) - fixedTotal);
+
+  const payload = {
+    currency: input.currency || profile.currency || "₹",
+    product_a: input.product_a, price_a: input.price_a, url_a: input.url_a || null,
+    product_b: input.product_b, price_b: input.price_b, url_b: input.url_b || null,
+    discretionary_budget: discretionaryBudget || null,
+    discretionary_spent_this_month: input.spent_this_month || 0,
+    savings_goals: (user?.goals || []).map(g => ({ name: g.name, target: g.target, saved: g.saved })),
+    spending_patterns: user ? spendingPatterns(user) : "No history.",
+  };
+
+  try {
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "authorization": `Bearer ${process.env.GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model: MODEL, temperature: 0.5, max_tokens: 900,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: COMPARE_SYSTEM },
+          { role: "user", content: JSON.stringify(payload, null, 2) },
+        ],
+      }),
+    });
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      return res.status(502).json({ error: body?.error?.message || `Groq API error ${r.status}` });
+    }
+    const data = await r.json();
+    res.json(extractJson(data?.choices?.[0]?.message?.content || ""));
+  } catch (err) {
+    res.status(500).json({ error: "Couldn't reach the reasoning service: " + err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Per-user data: profile (income + fixed expenses), savings goals, history.
 // No login — data is keyed by an anonymous ID the browser generates and keeps.
 // ---------------------------------------------------------------------------
