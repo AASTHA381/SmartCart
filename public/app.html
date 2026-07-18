@@ -173,6 +173,26 @@
   .navbtn.active{color:var(--brand);}
   #appNav{display:none;}
 
+  /* Watchlist */
+  .watch-actions{display:flex;gap:10px;margin:14px 0 4px;}
+  .watch-actions .btn{flex:1;}
+  .watch-added{background:var(--good-bg);color:var(--good);border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700;margin:10px 0 4px;text-align:center;}
+  .witem{background:#fff;border:1px solid var(--line);border-radius:15px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow);}
+  .witem .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+  .witem .nm{font-size:14.5px;font-weight:700;line-height:1.3;}
+  .witem .meta{font-size:11.5px;color:var(--ink-3);margin-top:2px;}
+  .witem .rm{background:none;border:none;color:var(--bad);font-size:12px;font-weight:700;cursor:pointer;flex:none;padding:0;}
+  .witem .prices{display:flex;align-items:baseline;gap:8px;margin-top:9px;flex-wrap:wrap;}
+  .witem .now{font-size:18px;font-weight:800;}
+  .witem .was{font-size:12.5px;color:var(--ink-3);text-decoration:line-through;}
+  .badge-pill{font-size:11px;font-weight:800;padding:3px 9px;border-radius:99px;display:inline-block;}
+  .badge-drop{background:var(--good-bg);color:var(--good);}
+  .badge-up{background:var(--bad-bg);color:var(--bad);}
+  .badge-remind{background:var(--wait-bg);color:var(--wait);}
+  .badge-manual{background:#eef2f7;color:var(--ink-2);}
+  .witem .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;}
+  .witem a.open{font-size:12px;color:var(--brand);font-weight:600;}
+
   /* ---- Animations & visuals ---- */
   @keyframes pop{0%{transform:scale(.85);opacity:0;}60%{transform:scale(1.04);}100%{transform:scale(1);opacity:1;}}
   @keyframes shakeX{10%,90%{transform:translateX(-1px);}20%,80%{transform:translateX(3px);}30%,50%,70%{transform:translateX(-7px);}40%,60%{transform:translateX(7px);}}
@@ -317,6 +337,11 @@
           <div class="mini-card against"><h3>👎 Against</h3><ul id="againstList"></ul></div>
         </div>
         <div class="reason-card"><h3>The reasoning</h3><p id="reasoning"></p><div class="alts" id="alts"></div></div>
+        <div class="watch-actions" id="watchActions">
+          <button class="btn btn-mini" id="saveWatchBtn">🔖 Save to watchlist</button>
+          <button class="btn btn-mini" id="remindBtn">⏰ Remind me in 30 days</button>
+        </div>
+        <div class="watch-added" id="watchAdded" style="display:none;"></div>
         <button class="btn btn-line" id="againBtn">← Check another product</button>
       </div>
     </div>
@@ -339,6 +364,15 @@
       <div class="card">
         <div class="sec-title"><span class="ic">🕑</span><div><h2>Recent decisions</h2></div></div>
         <div id="historyList"><div class="empty">Your past checks will show up here.</div></div>
+      </div>
+    </div>
+
+    <!-- Saved / Watchlist -->
+    <div id="view-watch" class="view">
+      <div class="card">
+        <div class="sec-title"><span class="ic">🔖</span><div><h2>Your watchlist</h2><div class="hint">Items you paused on — we re-check prices for drops.</div></div></div>
+        <button class="btn btn-mini" id="refreshWatchBtn">🔄 Refresh prices</button>
+        <div id="watchList" style="margin-top:12px;"><div class="empty">Nothing saved yet. When you get a “Wait” verdict, tap “Save to watchlist”.</div></div>
       </div>
     </div>
 
@@ -372,6 +406,7 @@
   <div class="bottomnav" id="appNav">
     <div class="in">
       <button class="navbtn active" data-view="decide"><span class="ic">🛒</span>Shop</button>
+      <button class="navbtn" data-view="watch"><span class="ic">🔖</span>Saved</button>
       <button class="navbtn" data-view="dash"><span class="ic">📊</span>Insights</button>
       <button class="navbtn" data-view="profile"><span class="ic">💼</span>Wallet</button>
     </div>
@@ -555,10 +590,22 @@ async function ask(){
 }
 el("askBtn").onclick = ask;
 
+let lastDecision = null;
+
 function showResult(out){
   el("loading").style.display="none"; el("result").style.display="block";
   const v=(out.verdict||"").toLowerCase();
   const kind=(v.includes("don't")||v.includes("dont"))?"dont":v.includes("wait")?"wait":"buy";
+  // Remember this decision so it can be saved to the watchlist.
+  lastDecision = {
+    product: el("product").value.trim(),
+    url: el("url").value.trim() || null,
+    price: parseFloat(el("price").value)||0,
+    currency, category: out.category || "Other", verdict: out.verdict || null,
+  };
+  el("watchActions").style.display = "flex";
+  el("watchAdded").style.display = "none";
+  el("saveWatchBtn").disabled = false; el("remindBtn").disabled = false;
   const vc = el("verdictCard");
   vc.className="verdict-card "+kind;
   vc.classList.remove("pop","shake"); void vc.offsetWidth; vc.classList.add("pop");
@@ -584,6 +631,60 @@ el("againBtn").onclick = () => {
   renderSpendTally(); window.scrollTo({top:0,behavior:"smooth"});
 };
 
+/* ---------- watchlist ---------- */
+async function saveToWatch(remindDays){
+  if(!lastDecision) return;
+  el("saveWatchBtn").disabled = true; el("remindBtn").disabled = true;
+  try{
+    await api("/api/watchlist", { method:"POST", body: JSON.stringify({ ...lastDecision, remindDays: remindDays||undefined }) });
+    el("watchActions").style.display = "none";
+    const a = el("watchAdded");
+    a.textContent = remindDays ? `⏰ Saved — we'll remind you in ${remindDays} days` : "🔖 Saved to your watchlist";
+    a.style.display = "block";
+  }catch(e){ el("saveWatchBtn").disabled=false; el("remindBtn").disabled=false; alert("Couldn't save: "+e.message); }
+}
+el("saveWatchBtn").onclick = () => saveToWatch(0);
+el("remindBtn").onclick = () => saveToWatch(30);
+el("refreshWatchBtn").onclick = () => loadWatchlist(true, true);
+
+async function loadWatchlist(refresh, force){
+  const box = el("watchList");
+  const btn = el("refreshWatchBtn");
+  if(refresh){ btn.disabled = true; btn.textContent = "🔄 Checking…"; }
+  try{
+    const endpoint = refresh ? "/api/watchlist/refresh" : "/api/watchlist";
+    const { watchlist } = await api(endpoint, refresh ? { method:"POST", body: JSON.stringify({ force: !!force }) } : {});
+    renderWatchlist(watchlist||[]);
+  }catch(e){ box.innerHTML = `<div class="empty">Couldn't load your watchlist.</div>`; }
+  finally{ if(refresh){ btn.disabled=false; btn.textContent="🔄 Refresh prices"; } }
+}
+
+function renderWatchlist(items){
+  const box = el("watchList");
+  if(!items.length){ box.innerHTML = `<div class="empty">Nothing saved yet. When you get a “Wait” verdict, tap “Save to watchlist”.</div>`; return; }
+  box.innerHTML = items.map(w => {
+    const cur = w.currency || currency;
+    const money = (n)=> cur + Number(n||0).toLocaleString("en-IN");
+    const when = new Date(w.addedTs).toLocaleDateString("en-IN",{day:"numeric",month:"short"});
+    let priceBadge = "";
+    if(w.trackable && w.drop > 0) priceBadge = `<span class="badge-pill badge-drop">↓ ${money(w.drop)} · ${w.dropPct}% off 🎉</span>`;
+    else if(w.trackable && w.drop < 0) priceBadge = `<span class="badge-pill badge-up">↑ ${money(-w.drop)}</span>`;
+    else if(!w.trackable) priceBadge = `<span class="badge-pill badge-manual">manual price</span>`;
+    const remindBadge = w.reminderDue ? `<span class="badge-pill badge-remind">⏰ 30-day check is due — still want it?</span>` : "";
+    const wasLine = (w.trackable && w.drop) ? `<span class="was">${money(w.startPrice)}</span>` : "";
+    const openLink = w.url ? `<a class="open" href="${esc(w.url)}" target="_blank" rel="noopener">Open ↗</a>` : "";
+    return `<div class="witem">
+      <div class="top">
+        <div><div class="nm">${esc(w.product)}</div><div class="meta">${esc(w.category||"Other")} · saved ${when}${w.verdict?` · was “${esc(w.verdict)}”`:""}</div></div>
+        <button class="rm" data-id="${w.id}">remove</button>
+      </div>
+      <div class="prices"><span class="now">${money(w.lastPrice)}</span> ${wasLine} ${priceBadge}</div>
+      <div class="tags">${remindBadge} ${openLink}</div>
+    </div>`;
+  }).join("");
+  box.querySelectorAll(".rm").forEach(b => b.onclick = async () => { await api("/api/watchlist/"+b.dataset.id, {method:"DELETE"}); loadWatchlist(false); });
+}
+
 /* ---------- nav ---------- */
 document.querySelectorAll(".navbtn").forEach(b => b.onclick = () => enterApp(b.dataset.view));
 function enterApp(view){
@@ -592,6 +693,7 @@ function enterApp(view){
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-"+view));
   document.querySelectorAll(".navbtn").forEach(b => b.classList.toggle("active", b.dataset.view===view));
   if(view==="dash") loadDashboard();
+  if(view==="watch"){ loadWatchlist(false); loadWatchlist(true, false); }
   window.scrollTo({top:0,behavior:"smooth"});
 }
 

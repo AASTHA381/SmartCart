@@ -1,4 +1,4 @@
-const CACHE = "sib-v5";
+const CACHE = "sib-v6";
 const ASSETS = ["./manifest.json", "./icons/icon.svg"];
 
 self.addEventListener("install", (e) => {

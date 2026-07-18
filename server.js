@@ -137,14 +137,11 @@ function fromRegex(html) {
   return parsePriceMatch(m);
 }
 
-app.post("/api/price", async (req, res) => {
-  const url = String(req.body?.url || "").trim();
-  if (!/^https?:\/\//i.test(url)) {
-    return res.status(400).json({ error: "Please provide a valid product URL." });
-  }
+// Reusable: fetch a product page and best-effort extract price/title/image.
+async function detectProductPrice(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
     const resp = await fetch(url, {
       redirect: "follow",
       signal: controller.signal,
@@ -155,7 +152,6 @@ app.post("/api/price", async (req, res) => {
         "Accept-Language": "en-US,en;q=0.9",
       },
     });
-    clearTimeout(timer);
     const html = await resp.text();
     const $ = cheerio.load(html);
 
@@ -167,7 +163,6 @@ app.post("/api/price", async (req, res) => {
 
     const price = ld.price || meta.price || sel.price || emb.price || rx.price || null;
     let currencyCode = ld.currency || meta.currency || sel.currency || rx.currency || null;
-    // If we found a price but no currency, infer from symbols in the page.
     if (price && !currencyCode) {
       if (/(₹|\bINR\b|Rs\.?)/.test(html)) currencyCode = "INR";
       else if (/[£]|\bGBP\b/.test(html)) currencyCode = "GBP";
@@ -175,8 +170,7 @@ app.post("/api/price", async (req, res) => {
       else if (/\$|\bUSD\b/.test(html)) currencyCode = "USD";
     }
     const title = (ld.title || meta.title || "").replace(/\s+/g, " ").trim() || null;
-
-    res.json({
+    return {
       price,
       currency: currencyCode,
       currencySymbol: currencyCode ? CURRENCY_SYMBOLS[currencyCode] || null : null,
@@ -184,7 +178,19 @@ app.post("/api/price", async (req, res) => {
       image: meta.image || null,
       detected: !!price,
       status: resp.status,
-    });
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+app.post("/api/price", async (req, res) => {
+  const url = String(req.body?.url || "").trim();
+  if (!/^https?:\/\//i.test(url)) {
+    return res.status(400).json({ error: "Please provide a valid product URL." });
+  }
+  try {
+    res.json(await detectProductPrice(url));
   } catch (err) {
     res.json({ price: null, title: null, detected: false, note: "Couldn't read that page automatically." });
   }
@@ -359,6 +365,93 @@ app.get("/api/history", (req, res) => {
   const user = requireUser(req, res);
   if (!user) return;
   res.json({ decisions: user.decisions || [], stats: computeStats(user) });
+});
+
+// ---------------------------------------------------------------------------
+// Watchlist: save items to reconsider, with a 30-day cool-off reminder and
+// on-demand price re-checks so drops/sales surface in the app.
+// ---------------------------------------------------------------------------
+function decorateWatchItem(w, now) {
+  const drop = Math.round(((w.startPrice || 0) - (w.lastPrice || 0)) * 100) / 100;
+  return {
+    ...w,
+    drop,
+    dropPct: w.startPrice ? Math.round((drop / w.startPrice) * 100) : 0,
+    reminderDue: !!(w.remindAt && w.remindAt <= now),
+    trackable: !!w.url,
+  };
+}
+
+app.post("/api/watchlist", (req, res) => {
+  const user = requireUser(req, res);
+  if (!user) return;
+  const { product, url, price, currency, category, verdict, remindDays } = req.body || {};
+  if (!product || !price) return res.status(400).json({ error: "Product and price are required." });
+  const now = Date.now();
+  const p = Number(price) || 0;
+  user.watchlist = user.watchlist || [];
+  // Avoid duplicates (same product + url).
+  user.watchlist = user.watchlist.filter(w => !(w.product === product && (w.url || "") === (url || "")));
+  const item = {
+    id: "w_" + now.toString(36),
+    product: String(product),
+    url: url || null,
+    category: category || "Other",
+    currency: currency || "₹",
+    verdict: verdict || null,
+    startPrice: p,
+    lastPrice: p,
+    lowestPrice: p,
+    addedTs: now,
+    lastCheckedTs: now,
+    remindAt: remindDays ? now + Number(remindDays) * 86400000 : null,
+    history: [{ ts: now, price: p }],
+  };
+  user.watchlist.unshift(item);
+  if (user.watchlist.length > 100) user.watchlist.length = 100;
+  saveUser(req.get("x-user-id"), user);
+  res.json({ ok: true, item: decorateWatchItem(item, now) });
+});
+
+app.delete("/api/watchlist/:id", (req, res) => {
+  const user = requireUser(req, res);
+  if (!user) return;
+  user.watchlist = (user.watchlist || []).filter(w => w.id !== req.params.id);
+  saveUser(req.get("x-user-id"), user);
+  res.json({ ok: true });
+});
+
+app.get("/api/watchlist", (req, res) => {
+  const user = requireUser(req, res);
+  if (!user) return;
+  const now = Date.now();
+  res.json({ watchlist: (user.watchlist || []).map(w => decorateWatchItem(w, now)) });
+});
+
+// Re-check prices for trackable items (throttled) — called when the user opens
+// the Saved tab. Surfaces drops without needing an always-on cron.
+app.post("/api/watchlist/refresh", async (req, res) => {
+  const user = requireUser(req, res);
+  if (!user) return;
+  const now = Date.now();
+  const items = user.watchlist || [];
+  const force = !!(req.body && req.body.force);
+  const stale = items.filter(w => w.url && (force || now - (w.lastCheckedTs || 0) > 2 * 3600 * 1000)).slice(0, 6);
+  await Promise.all(stale.map(async (w) => {
+    try {
+      const r = await detectProductPrice(w.url);
+      w.lastCheckedTs = now;
+      if (r && r.price) {
+        if (r.price !== w.lastPrice) {
+          w.history = [...(w.history || []), { ts: now, price: r.price }].slice(-40);
+        }
+        w.lastPrice = r.price;
+        if (r.price < (w.lowestPrice || r.price + 1)) w.lowestPrice = r.price;
+      }
+    } catch { /* leave item as-is on failure */ }
+  }));
+  saveUser(req.get("x-user-id"), user);
+  res.json({ watchlist: items.map(w => decorateWatchItem(w, now)), checked: stale.length });
 });
 
 app.listen(PORT, () => {
