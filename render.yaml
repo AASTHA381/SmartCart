@@ -1,0 +1,16 @@
+# Render deployment config for SmartCart.
+# 1. Push this repo to GitHub (done).
+# 2. On https://render.com → New → Blueprint → pick this repo.
+# 3. When prompted, paste your GROQ_API_KEY (it is kept secret, not in the repo).
+services:
+  - type: web
+    name: smartcart
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false            # you enter this in the Render dashboard (secret)
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
