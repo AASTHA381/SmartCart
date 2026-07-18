@@ -1,0 +1,12 @@
+{
+  "name": "Should I Buy This?",
+  "short_name": "ShouldIBuy",
+  "description": "An AI decision assistant that gives a reasoned yes/no on a purchase based on your budget and recent spending.",
+  "start_url": "./app.html",
+  "display": "standalone",
+  "background_color": "#f4f4f7",
+  "theme_color": "#7c3aed",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

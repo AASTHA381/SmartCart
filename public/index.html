@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#7c3aed" />
+<title>SmartCart — Should you actually buy it?</title>
+<meta name="description" content="SmartCart analyzes any purchase against your budget, spending and goals, then gives an objective Buy / Wait / Don't buy with the reasoning. No ads. No pressure. Just math." />
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+<style>
+  :root{
+    --purple:#7c3aed; --purple-2:#6d28d9; --purple-dark:#4c1d95; --purple-light:#a78bfa;
+    --lav:#f3efff; --lav-2:#ece5ff;
+    --ink:#191225; --ink-2:#5c5566; --ink-3:#928b9e;
+    --line:#eee9f5; --bg:#ffffff; --soft:#faf8ff;
+    --good:#16a34a; --wait:#d97706;
+    --shadow:0 20px 46px -22px rgba(76,29,149,.5);
+    --shadow-sm:0 8px 22px -14px rgba(25,18,37,.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html{scroll-behavior:smooth;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased;}
+  a{color:inherit;text-decoration:none;}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 22px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;padding:14px 26px;transition:transform .1s,box-shadow .2s,background .2s,filter .2s;font-family:inherit;}
+  .btn:active{transform:scale(.98);}
+  .btn-primary{background:var(--purple);color:#fff;box-shadow:var(--shadow);}
+  .btn-primary:hover{background:var(--purple-2);transform:translateY(-1px);}
+  .btn-white{background:#fff;color:var(--purple);box-shadow:var(--shadow-sm);}
+  .btn-white:hover{background:var(--lav);}
+  .btn-outline{background:rgba(255,255,255,.12);color:#fff;border:1.5px solid rgba(255,255,255,.55);backdrop-filter:blur(4px);}
+  .btn-outline:hover{background:rgba(255,255,255,.22);}
+  .arrow{transition:transform .2s;}
+  .btn:hover .arrow{transform:translateX(4px);}
+
+  /* NAV (overlays hero, solidifies on scroll) */
+  header.nav{position:fixed;top:0;left:0;right:0;z-index:50;transition:background .3s,box-shadow .3s,border-color .3s;border-bottom:1px solid transparent;}
+  .nav .in{display:flex;align-items:center;justify-content:space-between;padding:16px 0;}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:-.02em;color:#fff;transition:color .3s;}
+  .brand .mk{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--purple),#c084fc);display:grid;place-items:center;font-size:18px;}
+  .nav .links{display:flex;align-items:center;gap:26px;}
+  .nav .links a.txt{font-size:14.5px;font-weight:600;color:rgba(255,255,255,.9);transition:color .3s;}
+  .nav .links a.txt:hover{color:#fff;}
+  header.nav.solid{background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-color:var(--line);box-shadow:0 6px 20px -16px rgba(0,0,0,.4);}
+  header.nav.solid .brand{color:var(--ink);}
+  header.nav.solid .links a.txt{color:var(--ink-2);}
+  header.nav.solid .links a.txt:hover{color:var(--purple);}
+  @media(max-width:760px){.nav .links a.txt{display:none;}}
+
+  /* HERO */
+  .hero{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;
+    background:linear-gradient(180deg,rgba(20,14,32,.62),rgba(20,14,32,.68)),url("images/hero.jpg") center/cover no-repeat fixed;}
+  @media(max-width:760px){.hero{background-attachment:scroll;}}
+  .hero .inner{position:relative;z-index:2;max-width:820px;padding:100px 22px 60px;}
+  .hero .badge{display:inline-flex;align-items:center;gap:8px;background:rgba(124,58,237,.25);border:1px solid rgba(167,139,250,.6);color:#fff;font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:999px;margin-bottom:26px;backdrop-filter:blur(4px);letter-spacing:.02em;}
+  .hero .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--purple-light);box-shadow:0 0 8px var(--purple-light);}
+  .hero h1{font-size:clamp(38px,7vw,74px);line-height:1.02;letter-spacing:-.03em;font-weight:850;text-transform:uppercase;text-shadow:0 4px 30px rgba(0,0,0,.4);}
+  .hero h1 .hl{background:linear-gradient(90deg,#c084fc,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .hero p.lead{font-size:clamp(15px,2.2vw,19px);color:rgba(255,255,255,.92);margin:22px auto 34px;max-width:560px;text-shadow:0 2px 14px rgba(0,0,0,.4);}
+  .hero .cta-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;}
+  .scroll-ind{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);z-index:2;color:rgba(255,255,255,.8);font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:7px;}
+  .scroll-ind .mouse{width:22px;height:34px;border:2px solid rgba(255,255,255,.6);border-radius:12px;position:relative;}
+  .scroll-ind .mouse::after{content:"";position:absolute;top:6px;left:50%;transform:translateX(-50%);width:3px;height:6px;border-radius:2px;background:#fff;animation:scrolldot 1.6s infinite;}
+  @keyframes scrolldot{0%{opacity:0;transform:translate(-50%,0);}40%{opacity:1;}80%{opacity:0;transform:translate(-50%,10px);}}
+
+  /* Trust strip */
+  .trustbar{background:var(--purple-dark);color:#fff;}
+  .trustbar .in{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 34px;padding:16px 0;}
+  .tb-item{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600;opacity:.95;}
+
+  section{padding:78px 0;}
+  .eyebrow{color:var(--purple);font-weight:800;font-size:13px;letter-spacing:.08em;text-transform:uppercase;text-align:center;}
+  .h2{font-size:clamp(26px,3.6vw,38px);font-weight:850;letter-spacing:-.02em;text-align:center;margin:10px auto 12px;max-width:660px;}
+  .sub{font-size:16px;color:var(--ink-2);text-align:center;max-width:560px;margin:0 auto 46px;}
+
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+  @media(max-width:820px){.steps{grid-template-columns:1fr;}}
+  .step{background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px;transition:transform .18s,box-shadow .18s;}
+  .step:hover{transform:translateY(-4px);box-shadow:var(--shadow-sm);}
+  .step .num{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--purple),#c084fc);color:#fff;font-weight:850;font-size:19px;display:grid;place-items:center;margin-bottom:16px;}
+  .step h3{font-size:18px;margin-bottom:7px;}
+  .step p{font-size:14.5px;color:var(--ink-2);}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  @media(max-width:820px){.grid{grid-template-columns:1fr;}}
+  .feat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px;transition:transform .18s,border-color .18s;}
+  .feat:hover{transform:translateY(-4px);border-color:var(--purple-light);}
+  .feat .ic{width:46px;height:46px;border-radius:13px;background:var(--lav);color:var(--purple);display:grid;place-items:center;font-size:22px;margin-bottom:15px;}
+  .feat h3{font-size:17px;margin-bottom:7px;}
+  .feat p{font-size:14px;color:var(--ink-2);}
+
+  /* Showcase with image */
+  .showcase{display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:center;}
+  @media(max-width:820px){.showcase{grid-template-columns:1fr;gap:28px;}}
+  .showcase .photo{border-radius:22px;overflow:hidden;box-shadow:var(--shadow);aspect-ratio:4/3;}
+  .showcase .photo img{width:100%;height:100%;object-fit:cover;display:block;}
+  .showcase h2{font-size:clamp(24px,3.2vw,32px);font-weight:850;letter-spacing:-.02em;margin-bottom:14px;}
+  .showcase p{color:var(--ink-2);font-size:15.5px;margin-bottom:18px;}
+  .showcase ul{list-style:none;display:grid;gap:12px;}
+  .showcase li{display:flex;gap:11px;align-items:flex-start;font-size:15px;}
+  .showcase li .ck{flex:none;width:26px;height:26px;border-radius:8px;background:var(--lav);color:var(--purple);display:grid;place-items:center;font-weight:800;}
+
+  /* Final CTA (image bg) */
+  .final{position:relative;border-radius:26px;overflow:hidden;color:#fff;text-align:center;padding:74px 40px;
+    background:linear-gradient(135deg,rgba(76,29,149,.88),rgba(124,58,237,.8)),url("images/bags.jpg") center/cover no-repeat;}
+  .final h2{font-size:clamp(28px,4vw,44px);font-weight:850;letter-spacing:-.02em;margin-bottom:14px;text-transform:uppercase;}
+  .final p{font-size:17px;opacity:.95;max-width:540px;margin:0 auto 30px;}
+
+  footer{padding:40px 0 60px;border-top:1px solid var(--line);margin-top:78px;}
+  footer .in{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;}
+  footer .brand{color:var(--ink);}
+  footer .brand .mk{color:#fff;}
+  footer .muted{color:var(--ink-3);font-size:13.5px;}
+
+  .reveal{opacity:0;transform:translateY(20px);transition:opacity .6s ease,transform .6s ease;}
+  .reveal.in{opacity:1;transform:none;}
+</style>
+</head>
+<body>
+  <!-- NAV -->
+  <header class="nav" id="nav">
+    <div class="wrap in">
+      <a class="brand" href="#top"><span class="mk">🛍️</span>SmartCart</a>
+      <nav class="links">
+        <a class="txt" href="#how">How it works</a>
+        <a class="txt" href="#features">Features</a>
+        <a class="txt" href="#why">Why trust it</a>
+        <a class="btn btn-primary" href="app.html">Start Analyzing <span class="arrow">→</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <a id="top"></a>
+  <section class="hero">
+    <div class="inner">
+      <span class="badge"><span class="dot"></span> Objective purchase analysis</span>
+      <h1>Shop smart,<br><span class="hl">not sorry.</span></h1>
+      <p class="lead">Customers don't just want to shop — they want to know it's worth it. Paste any product and get an honest <b>Buy</b>, <b>Wait</b>, or <b>Don't&nbsp;buy</b>, backed by your real budget and goals.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="app.html" style="font-size:16px;padding:16px 30px;">Start Analyzing <span class="arrow">→</span></a>
+        <a class="btn btn-outline" href="#how">See how it works</a>
+      </div>
+    </div>
+    <div class="scroll-ind"><div class="mouse"></div>Scroll</div>
+  </section>
+
+  <!-- TRUST STRIP -->
+  <div class="trustbar">
+    <div class="wrap in">
+      <div class="tb-item">🔍 Reasons over your data</div>
+      <div class="tb-item">🎯 Goal-aware advice</div>
+      <div class="tb-item">📊 Tracks what you save</div>
+      <div class="tb-item">🔒 Private by default</div>
+      <div class="tb-item">🚫 No ads, ever</div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <section id="how">
+    <div class="wrap">
+      <div class="eyebrow">How it works</div>
+      <h2 class="h2">Three steps to a confident decision</h2>
+      <p class="sub">Set your money picture once, then analyze any purchase in seconds.</p>
+      <div class="steps">
+        <div class="step reveal"><div class="num">1</div><h3>Set your wallet</h3><p>Enter your income, fixed costs and savings goals. It's remembered — you only do this once.</p></div>
+        <div class="step reveal"><div class="num">2</div><h3>Paste a product link</h3><p>Drop in any product URL. SmartCart fetches the price automatically, or you type it in.</p></div>
+        <div class="step reveal"><div class="num">3</div><h3>Get an honest verdict</h3><p>See a clear Buy / Wait / Don't buy, the budget impact, trade-offs and smarter alternatives.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features" style="background:var(--soft);border-top:1px solid var(--line);border-bottom:1px solid var(--line);">
+    <div class="wrap">
+      <div class="eyebrow">What makes it different</div>
+      <h2 class="h2">Analysis, not just a price tag</h2>
+      <p class="sub">Most tools tell you what something costs. SmartCart tells you whether it's worth it — for <i>you</i>.</p>
+      <div class="grid">
+        <div class="feat reveal"><div class="ic">🧠</div><h3>Reasoned verdicts</h3><p>Every answer weighs need vs want, timing, durability and opportunity cost — with the logic shown.</p></div>
+        <div class="feat reveal"><div class="ic">💸</div><h3>Budget-aware</h3><p>It knows your discretionary budget and what you've spent, so advice fits your real situation.</p></div>
+        <div class="feat reveal"><div class="ic">🎯</div><h3>Protects your goals</h3><p>See exactly how a purchase delays your savings goals before you commit to it.</p></div>
+        <div class="feat reveal"><div class="ic">📆</div><h3>Cost-per-use lens</h3><p>Reframes big buys into everyday cost — so “expensive” becomes a number you can judge.</p></div>
+        <div class="feat reveal"><div class="ic">📊</div><h3>Savings dashboard</h3><p>Tracks the money you saved by skipping impulse buys, broken down by category.</p></div>
+        <div class="feat reveal"><div class="ic">🔒</div><h3>Private & personal</h3><p>No account needed. Your finances stay yours and quietly sharpen the advice over time.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SHOWCASE -->
+  <section id="why">
+    <div class="wrap showcase">
+      <div class="photo reveal"><img src="images/online.jpg" alt="Online shopping" loading="lazy" /></div>
+      <div class="reveal">
+        <div class="eyebrow" style="text-align:left;">Built to be honest</div>
+        <h2>Advice that has no reason to sell to you</h2>
+        <p>SmartCart isn't a store and earns nothing when you buy. Its only job is an objective, analytical read on whether a purchase makes sense — even when the answer is “not yet.”</p>
+        <ul>
+          <li><span class="ck">✓</span> Objective by design — it'll happily tell you to wait.</li>
+          <li><span class="ck">✓</span> Grounded in your actual budget and goals.</li>
+          <li><span class="ck">✓</span> No ads, no affiliate pressure, no data selling.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section style="padding-top:0;">
+    <div class="wrap">
+      <div class="final">
+        <h2>Your next purchase,<br>decided by data.</h2>
+        <p>Stop second-guessing at checkout. Get an objective verdict in seconds — and shop with confidence.</p>
+        <a class="btn btn-white" href="app.html" style="font-size:16px;padding:16px 32px;">Start Analyzing <span class="arrow">→</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="wrap in">
+      <a class="brand" href="#top"><span class="mk">🛍️</span>SmartCart</a>
+      <div class="muted">Objective purchase analysis · No ads · No data selling</div>
+      <a class="btn btn-primary" href="app.html">Start Analyzing <span class="arrow">→</span></a>
+    </div>
+  </footer>
+
+<script>
+  // Solidify nav after hero
+  const nav = document.getElementById("nav");
+  const onScroll = () => nav.classList.toggle("solid", window.scrollY > window.innerHeight - 90);
+  window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
+  // Reveal on scroll
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { threshold: 0.14 });
+  document.querySelectorAll(".reveal").forEach((n, i) => { n.style.transitionDelay = (i % 3) * 0.07 + "s"; io.observe(n); });
+</script>
+</body>
+</html>

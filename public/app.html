@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#7c3aed" />
+<title>SmartCart — Should I Buy This?</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+<style>
+  :root{
+    --bg:#f4f4f7; --surface:#ffffff; --surface-2:#fafafd;
+    --ink:#16121f; --ink-2:#6b7280; --ink-3:#a1a1aa;
+    --line:#ececf1;
+    --brand:#7c3aed; --brand-2:#ec4899; --brand-soft:#f5f0ff;
+    --price:#e11d48;
+    --good:#16a34a; --good-bg:#f0fdf4;
+    --bad:#e11d48; --bad-bg:#fff1f2;
+    --wait:#d97706; --wait-bg:#fffbeb;
+    --shadow:0 6px 22px -10px rgba(24,18,43,.22);
+    --shadow-lg:0 18px 40px -18px rgba(124,58,237,.45);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;color:var(--ink);line-height:1.5;background:var(--bg);}
+  button{font-family:inherit;}
+
+  /* App bar */
+  .appbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);}
+  .appbar .in{max-width:600px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;}
+  .logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:17px;letter-spacing:-.01em;color:inherit;text-decoration:none;cursor:pointer;}
+  .logo .mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:grid;place-items:center;font-size:16px;}
+  .logo .grad{background:linear-gradient(90deg,var(--brand),var(--brand-2));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .wallet{display:flex;flex-direction:column;align-items:flex-end;background:var(--brand-soft);border:1px solid #ece5ff;border-radius:12px;padding:5px 11px;}
+  .wallet .l{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--brand);}
+  .wallet .v{font-size:14px;font-weight:800;color:var(--ink);line-height:1.1;}
+
+  .screen{max-width:600px;margin:0 auto;padding:16px 16px 96px;}
+  .view{display:none;animation:rise .3s ease;}
+  .view.active{display:block;}
+  @keyframes rise{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+  .card{background:var(--surface);border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:var(--shadow);}
+  .sec-title{display:flex;align-items:center;gap:9px;margin-bottom:12px;}
+  .sec-title .ic{width:30px;height:30px;border-radius:9px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font-size:15px;flex:none;}
+  .sec-title h2{font-size:16px;margin:0;}
+  .sec-title .hint{font-size:12px;color:var(--ink-3);margin-top:1px;}
+
+  label.fld{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin:13px 0 6px;}
+  input,textarea{width:100%;padding:13px 14px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:15px;color:var(--ink);outline:none;font-family:inherit;transition:border-color .15s,box-shadow .15s;}
+  input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft);}
+  input::placeholder{color:var(--ink-3);}
+  .link-row{display:flex;gap:8px;}
+  .link-row input{flex:1;}
+  .money{position:relative;}
+  .money .cur{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--ink-2);font-weight:600;pointer-events:none;}
+  .money input{padding-left:28px;}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:13px;font-size:15px;font-weight:700;cursor:pointer;padding:13px 16px;transition:transform .08s,filter .15s,box-shadow .15s;}
+  .btn:active:not(:disabled){transform:scale(.98);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-brand{background:linear-gradient(90deg,var(--brand),var(--brand-2));color:#fff;width:100%;box-shadow:var(--shadow-lg);}
+  .btn-brand:hover:not(:disabled){filter:brightness(1.05);}
+  .btn-ghost{background:#f0f0f5;color:var(--ink);flex:none;padding:12px 15px;}
+  .btn-mini{background:var(--brand-soft);color:var(--brand);padding:9px 13px;font-size:13px;}
+  .btn-line{background:none;color:var(--ink-3);text-decoration:underline;font-weight:600;padding:8px;width:100%;}
+  .saved-flag{display:none;color:var(--good);font-size:13px;font-weight:700;margin-left:8px;}
+
+  .rowlist .ln{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+  .rowlist .ln input.lbl{flex:1.6;}
+  .rowlist .ln .m{flex:1;position:relative;}
+  .rowlist .ln .m .cur{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink-2);font-weight:600;}
+  .rowlist .ln .m input{padding-left:24px;}
+  .rowlist .ln .rm{flex:none;width:38px;height:43px;border-radius:11px;border:1.5px solid var(--line);background:#fff;color:var(--bad);font-size:19px;cursor:pointer;}
+
+  .tally{margin-top:8px;border-top:1px dashed var(--line);padding-top:10px;}
+  .tally .r{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-2);padding:3px 0;}
+  .tally .r b{color:var(--ink);}
+
+  /* Goals */
+  .goal{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;}
+  .goal .top{display:flex;justify-content:space-between;align-items:center;}
+  .goal .nm{font-size:14px;font-weight:700;}
+  .goal .amt{font-size:12px;color:var(--ink-2);margin-top:2px;}
+  .goal .bar{height:7px;border-radius:99px;background:#e9e9f0;margin-top:8px;overflow:hidden;}
+  .goal .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-2));transition:width .5s;}
+  .goal .del{background:none;border:none;color:var(--bad);font-size:12px;cursor:pointer;padding:0;font-weight:600;}
+  .empty{text-align:center;color:var(--ink-3);font-size:13.5px;padding:16px 0;}
+
+  /* Onboarding */
+  #onboarding{display:none;}
+  .welcome{text-align:center;padding:18px 8px 6px;}
+  .welcome .em{font-size:38px;}
+  .welcome h1{font-size:23px;margin:8px 0 4px;letter-spacing:-.02em;}
+  .welcome p{color:var(--ink-2);font-size:14px;margin:0 auto;max-width:360px;}
+  .steps-dots{display:flex;justify-content:center;gap:6px;margin:14px 0;}
+  .steps-dots i{width:7px;height:7px;border-radius:99px;background:#d9d9e3;}
+  .steps-dots i.on{background:var(--brand);width:20px;}
+
+  /* Product card (shopping look) */
+  .product-card{display:none;margin-top:14px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff;box-shadow:var(--shadow);animation:rise .3s ease;}
+  .product-card.show{display:block;}
+  .product-card .img{height:150px;background:var(--surface-2);display:grid;place-items:center;border-bottom:1px solid var(--line);}
+  .product-card .img img{max-height:130px;max-width:80%;object-fit:contain;}
+  .product-card .body{padding:14px;}
+  .product-card .cat{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--brand);background:var(--brand-soft);padding:3px 9px;border-radius:99px;margin-bottom:7px;}
+  .product-card .t{font-size:14.5px;font-weight:600;line-height:1.35;}
+  .product-card .pr{font-size:22px;font-weight:800;color:var(--price);margin-top:6px;}
+  .product-card .pr small{font-size:12px;color:var(--ink-3);font-weight:500;}
+
+  .sticky-cta{position:sticky;bottom:78px;padding-top:6px;}
+  .err{display:none;color:#b91c1c;font-size:13px;margin-top:10px;background:var(--bad-bg);border:1px solid #fecdd3;padding:10px 12px;border-radius:11px;}
+  .inline-err{display:none;color:var(--bad);font-size:12.5px;margin-top:6px;}
+
+  #loading{display:none;text-align:center;color:var(--brand);padding:46px 0;}
+  .spinner{width:34px;height:34px;border:3px solid var(--brand-soft);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* Verdict */
+  #result{display:none;}
+  .verdict-card{border-radius:20px;padding:22px;text-align:center;color:#fff;margin-bottom:14px;box-shadow:var(--shadow-lg);}
+  .verdict-card.buy{background:linear-gradient(135deg,#16a34a,#22c55e);}
+  .verdict-card.wait{background:linear-gradient(135deg,#d97706,#f59e0b);}
+  .verdict-card.dont{background:linear-gradient(135deg,#e11d48,#fb7185);}
+  .verdict-card .tag{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;opacity:.9;}
+  .verdict-card .word{font-size:30px;font-weight:800;margin:4px 0 0;}
+  .verdict-card .head{font-size:14px;opacity:.96;margin:8px auto 0;max-width:340px;}
+  .verdict-card .conf{font-size:12px;opacity:.85;margin-top:6px;}
+  .chips-info{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+  .info-pill{display:flex;gap:10px;align-items:flex-start;border-radius:13px;padding:12px 14px;font-size:13.5px;font-weight:600;}
+  .info-pill.budget{background:var(--brand-soft);color:#5b21b6;}
+  .info-pill.goal{background:#fef2f4;color:#9f1239;}
+  .info-pill.cpu{background:#eefdf3;color:#166534;}
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+  @media(max-width:460px){.duo{grid-template-columns:1fr;}}
+  .mini-card{background:#fff;border-radius:16px;padding:14px;box-shadow:var(--shadow);}
+  .mini-card h3{font-size:12px;text-transform:uppercase;letter-spacing:.4px;margin:0 0 8px;}
+  .mini-card.for h3{color:var(--good);} .mini-card.against h3{color:var(--bad);}
+  .mini-card ul{margin:0;padding-left:18px;font-size:13.5px;} .mini-card li{margin-bottom:5px;}
+  .reason-card{background:#fff;border-radius:16px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px;}
+  .reason-card h3{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-2);margin:0 0 8px;}
+  .reason-card p{font-size:14.5px;margin:0;}
+  .alts{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-2);}
+  .alt-chip{display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:99px;padding:5px 11px;margin:4px 4px 0 0;font-size:12.5px;color:var(--ink);}
+
+  /* Dashboard */
+  .save-hero{background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;border-radius:20px;padding:22px;text-align:center;margin-bottom:14px;box-shadow:var(--shadow-lg);}
+  .save-hero .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.5px;opacity:.9;}
+  .save-hero .big{font-size:34px;font-weight:800;margin:4px 0;}
+  .save-hero .sub{font-size:13px;opacity:.95;}
+  .stat-duo{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+  .stat{background:#fff;border-radius:16px;padding:14px;box-shadow:var(--shadow);text-align:center;}
+  .stat .v{font-size:22px;font-weight:800;} .stat .l{font-size:11.5px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.4px;margin-top:2px;}
+  .cat-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13px;}
+  .cat-row .nm{width:90px;flex:none;color:var(--ink-2);}
+  .cat-row .bar{flex:1;height:8px;background:#eeeef4;border-radius:99px;overflow:hidden;}
+  .cat-row .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-2));}
+  .cat-row .amt{width:74px;text-align:right;font-weight:700;font-size:12.5px;}
+  .hist{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line);}
+  .hist:last-child{border-bottom:none;}
+  .hist .nm{font-size:14px;font-weight:600;}
+  .hist .meta{font-size:12px;color:var(--ink-3);margin-top:1px;}
+  .vbadge{font-size:11px;font-weight:800;padding:4px 9px;border-radius:99px;}
+  .vbadge.buy{background:var(--good-bg);color:var(--good);}
+  .vbadge.wait{background:var(--wait-bg);color:var(--wait);}
+  .vbadge.dont{background:var(--bad-bg);color:var(--bad);}
+
+  /* Bottom nav */
+  .bottomnav{position:fixed;bottom:0;left:0;right:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-top:1px solid var(--line);}
+  .bottomnav .in{max-width:600px;margin:0 auto;display:flex;padding:8px 8px max(8px,env(safe-area-inset-bottom));}
+  .navbtn{flex:1;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px;color:var(--ink-3);font-size:11px;font-weight:600;cursor:pointer;transition:color .15s;}
+  .navbtn .ic{font-size:20px;line-height:1;}
+  .navbtn.active{color:var(--brand);}
+  #appNav{display:none;}
+
+  /* ---- Animations & visuals ---- */
+  @keyframes pop{0%{transform:scale(.85);opacity:0;}60%{transform:scale(1.04);}100%{transform:scale(1);opacity:1;}}
+  @keyframes shakeX{10%,90%{transform:translateX(-1px);}20%,80%{transform:translateX(3px);}30%,50%,70%{transform:translateX(-7px);}40%,60%{transform:translateX(7px);}}
+  @keyframes shimmer{100%{background-position:-200% 0;}}
+  @keyframes confFall{0%{transform:translateY(-12vh) rotate(0);opacity:1;}100%{transform:translateY(110vh) rotate(720deg);opacity:.9;}}
+  @keyframes ripple{to{transform:scale(2.6);opacity:0;}}
+  @keyframes floaty{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+  @keyframes shine{0%,100%{background-position:0% 50%;}50%{background-position:100% 50%;}}
+  .pop{animation:pop .45s cubic-bezier(.2,.9,.3,1.2);}
+  .shake{animation:shakeX .5s;}
+  .card{transition:transform .18s ease, box-shadow .18s ease;}
+  .card:hover{transform:translateY(-2px);box-shadow:0 12px 30px -14px rgba(24,18,43,.3);}
+  .view.active .card,.view.active .product-card{animation:rise .4s ease both;}
+  .view.active .card:nth-of-type(2){animation-delay:.06s;}
+  .view.active .card:nth-of-type(3){animation-delay:.12s;}
+  .view.active .card:nth-of-type(4){animation-delay:.18s;}
+  .skeleton{background:linear-gradient(90deg,#ececf1 25%,#f6f6fa 37%,#ececf1 63%);background-size:200% 100%;animation:shimmer 1.15s infinite;color:transparent !important;border-radius:8px;}
+  .btn{position:relative;overflow:hidden;}
+  .rp{position:absolute;border-radius:50%;background:rgba(255,255,255,.5);transform:scale(0);animation:ripple .6s ease-out;pointer-events:none;}
+  .btn-ghost .rp,.btn-mini .rp,.btn-line .rp{background:rgba(124,58,237,.22);}
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:60;overflow:hidden;}
+  #confetti i{position:absolute;top:-12vh;width:9px;height:14px;border-radius:2px;animation:confFall linear forwards;}
+  .logo .mark{background-size:180% 180%;animation:shine 4s ease infinite;}
+  .promo{display:flex;gap:12px;align-items:center;background:linear-gradient(120deg,var(--brand),var(--brand-2));color:#fff;border-radius:16px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden;}
+  .promo::after{content:"";position:absolute;right:-30px;top:-30px;width:120px;height:120px;background:radial-gradient(circle,rgba(255,255,255,.22),transparent 70%);}
+  .promo .em{font-size:26px;animation:floaty 2.6s ease-in-out infinite;}
+  .promo .t{font-weight:800;font-size:15px;}
+  .promo .s{font-size:12px;opacity:.93;margin-top:1px;}
+  @media(prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important;}}
+</style>
+</head>
+<body>
+  <!-- App bar -->
+  <div class="appbar">
+    <div class="in">
+      <a class="logo" href="index.html" title="Back to home"><span class="mark">🛍️</span> Smart<span class="grad">Cart</span></a>
+      <div class="wallet"><span class="l">Left to spend</span><span class="v" id="walletValue">—</span></div>
+    </div>
+  </div>
+
+  <div class="screen">
+    <!-- ============ ONBOARDING ============ -->
+    <div id="onboarding">
+      <div class="welcome">
+        <div class="em">👋</div>
+        <h1>Let's set up your wallet</h1>
+        <p>Tell us your money picture once. Then every purchase gets advice that actually fits you.</p>
+        <div class="steps-dots"><i class="on"></i><i></i></div>
+      </div>
+
+      <div class="card">
+        <div class="sec-title"><span class="ic">💼</span><div><h2>Your finances</h2><div class="hint">Income & fixed monthly costs</div></div></div>
+        <label class="fld">Monthly income</label>
+        <div class="money"><span class="cur">₹</span><input type="number" id="ob_income" placeholder="0" min="0" inputmode="decimal" /></div>
+        <label class="fld">Fixed monthly expenses (rent, EMIs, subscriptions)</label>
+        <div class="rowlist" id="ob_fixedList"></div>
+        <button class="btn btn-mini" id="ob_addFixed">+ Add fixed expense</button>
+        <div class="tally"><div class="r"><span>Discretionary budget / month</span><b id="ob_disc">—</b></div></div>
+      </div>
+
+      <div class="card">
+        <div class="sec-title"><span class="ic">🎯</span><div><h2>Savings goals</h2><div class="hint">Optional — we'll protect these</div></div></div>
+        <div id="ob_goalsList"></div>
+        <label class="fld">Add a goal</label>
+        <input type="text" id="ob_goalName" placeholder="e.g. New laptop" />
+        <div class="link-row" style="margin-top:8px;">
+          <div class="money" style="flex:1;"><span class="cur">₹</span><input type="number" id="ob_goalTarget" placeholder="Target" min="0" /></div>
+          <div class="money" style="flex:1;"><span class="cur">₹</span><input type="number" id="ob_goalSaved" placeholder="Saved" min="0" /></div>
+        </div>
+        <button class="btn btn-mini" id="ob_addGoal" style="margin-top:10px;">+ Add this goal</button>
+      </div>
+
+      <button class="btn btn-brand" id="ob_continue">Save & start shopping →</button>
+      <button class="btn btn-line" id="ob_skip" style="margin-top:6px;">Skip for now</button>
+    </div>
+
+    <!-- ============ MAIN APP ============ -->
+    <!-- Decide -->
+    <div id="view-decide" class="view">
+      <div id="flow">
+        <div class="promo">
+          <span class="em">🛒</span>
+          <div><div class="t">Shop smarter, not harder</div><div class="s">Paste any product — get an instant, honest verdict.</div></div>
+        </div>
+        <div class="card">
+          <div class="sec-title"><span class="ic">🔎</span><div><h2>What are you eyeing?</h2><div class="hint">Paste a product link — we'll fetch it.</div></div></div>
+          <div class="link-row">
+            <input type="url" id="url" placeholder="https://…" inputmode="url" autocomplete="off" />
+            <button class="btn btn-ghost" id="detectBtn">Detect</button>
+          </div>
+          <div class="inline-err" id="urlErr"></div>
+
+          <div class="product-card" id="productCard">
+            <div class="img"><img id="pvImg" alt="" /></div>
+            <div class="body">
+              <span class="cat" id="pvCat" style="display:none;">Product</span>
+              <div class="t" id="pvTitle">—</div>
+              <div class="pr" id="pvPrice">—</div>
+            </div>
+          </div>
+
+          <label class="fld">Product name</label>
+          <input type="text" id="product" placeholder="e.g. Sony WH-1000XM5 headphones" />
+          <label class="fld">Price</label>
+          <div class="money"><span class="cur cur-price">₹</span><input type="number" id="price" placeholder="0" min="0" inputmode="decimal" /></div>
+        </div>
+
+        <div class="card">
+          <div class="sec-title"><span class="ic">🧾</span><div><h2>Spent this month</h2><div class="hint">Your discretionary spending so far.</div></div></div>
+          <div class="rowlist" id="spendList"></div>
+          <button class="btn btn-mini" id="addSpend">+ Add expense</button>
+          <div class="tally">
+            <div class="r"><span>Discretionary budget</span><b id="tBudget">—</b></div>
+            <div class="r"><span>Spent so far</span><b id="tSpent">—</b></div>
+            <div class="r"><span>Left to spend</span><b id="tLeft">—</b></div>
+            <div class="r"><span>This buy takes</span><b id="tShare">—</b></div>
+          </div>
+        </div>
+
+        <div class="sticky-cta">
+          <button class="btn btn-brand" id="askBtn">🤔 Should I buy it?</button>
+          <div class="err" id="askErr"></div>
+        </div>
+      </div>
+
+      <div id="loading"><div class="spinner"></div><div style="font-weight:600;">Weighing it against your wallet…</div></div>
+
+      <div id="result">
+        <div class="verdict-card" id="verdictCard">
+          <div class="tag" id="verdictCat"></div>
+          <div class="word" id="verdictWord">—</div>
+          <div class="head" id="verdictHead"></div>
+          <div class="conf" id="verdictConf"></div>
+        </div>
+        <div class="chips-info">
+          <div class="info-pill budget" id="pillBudget"><span>💸</span><span id="impactText"></span></div>
+          <div class="info-pill goal" id="pillGoal" style="display:none;"><span>🎯</span><span id="goalText"></span></div>
+          <div class="info-pill cpu" id="pillCpu" style="display:none;"><span>📆</span><span id="cpuText"></span></div>
+        </div>
+        <div class="duo">
+          <div class="mini-card for"><h3>👍 In favour</h3><ul id="forList"></ul></div>
+          <div class="mini-card against"><h3>👎 Against</h3><ul id="againstList"></ul></div>
+        </div>
+        <div class="reason-card"><h3>The reasoning</h3><p id="reasoning"></p><div class="alts" id="alts"></div></div>
+        <button class="btn btn-line" id="againBtn">← Check another product</button>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="view-dash" class="view">
+      <div class="save-hero">
+        <div class="lbl">Money saved by not impulse-buying</div>
+        <div class="big" id="dashSaved">—</div>
+        <div class="sub" id="dashSavedSub"></div>
+      </div>
+      <div class="stat-duo">
+        <div class="stat"><div class="v" id="dashDecisions">0</div><div class="l">Decisions</div></div>
+        <div class="stat"><div class="v" id="dashBought">—</div><div class="l">Approved to buy</div></div>
+      </div>
+      <div class="card">
+        <div class="sec-title"><span class="ic">📊</span><div><h2>Spending by category</h2></div></div>
+        <div id="catBreakdown"><div class="empty">No decisions yet.</div></div>
+      </div>
+      <div class="card">
+        <div class="sec-title"><span class="ic">🕑</span><div><h2>Recent decisions</h2></div></div>
+        <div id="historyList"><div class="empty">Your past checks will show up here.</div></div>
+      </div>
+    </div>
+
+    <!-- Profile / Finances -->
+    <div id="view-profile" class="view">
+      <div class="card">
+        <div class="sec-title"><span class="ic">💼</span><div><h2>Your finances</h2><div class="hint">Update anytime</div></div></div>
+        <label class="fld">Monthly income</label>
+        <div class="money"><span class="cur">₹</span><input type="number" id="pf_income" placeholder="0" min="0" inputmode="decimal" /></div>
+        <label class="fld">Fixed monthly expenses</label>
+        <div class="rowlist" id="pf_fixedList"></div>
+        <button class="btn btn-mini" id="pf_addFixed">+ Add fixed expense</button>
+        <div class="tally"><div class="r"><span>Discretionary budget / month</span><b id="pf_disc">—</b></div></div>
+        <button class="btn btn-brand" id="pf_save" style="margin-top:12px;">Save finances<span class="saved-flag" id="pf_saved">Saved ✓</span></button>
+      </div>
+      <div class="card">
+        <div class="sec-title"><span class="ic">🎯</span><div><h2>Savings goals</h2></div></div>
+        <div id="pf_goalsList"></div>
+        <label class="fld">Add a goal</label>
+        <input type="text" id="pf_goalName" placeholder="e.g. Emergency fund" />
+        <div class="link-row" style="margin-top:8px;">
+          <div class="money" style="flex:1;"><span class="cur">₹</span><input type="number" id="pf_goalTarget" placeholder="Target" min="0" /></div>
+          <div class="money" style="flex:1;"><span class="cur">₹</span><input type="number" id="pf_goalSaved" placeholder="Saved" min="0" /></div>
+        </div>
+        <button class="btn btn-mini" id="pf_addGoal" style="margin-top:10px;">+ Add this goal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom nav -->
+  <div class="bottomnav" id="appNav">
+    <div class="in">
+      <button class="navbtn active" data-view="decide"><span class="ic">🛒</span>Shop</button>
+      <button class="navbtn" data-view="dash"><span class="ic">📊</span>Insights</button>
+      <button class="navbtn" data-view="profile"><span class="ic">💼</span>Wallet</button>
+    </div>
+  </div>
+  <div id="confetti"></div>
+
+<script>
+const el = (id) => document.getElementById(id);
+let currency = "₹";
+let profile = { income: 0, fixed: [], currency: "₹" };
+let goals = [];
+
+const UID = (() => {
+  let id = localStorage.getItem("sib_uid");
+  if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : "u-"+Date.now()+"-"+Math.random().toString(36).slice(2)); localStorage.setItem("sib_uid", id); }
+  return id;
+})();
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { "content-type":"application/json", "x-user-id":UID, ...(opts.headers||{}) } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+function fmt(n){ return currency + Number(n||0).toLocaleString("en-IN"); }
+function setCurrency(sym){ if(!sym) return; currency = sym; document.querySelectorAll(".cur,.cur-price").forEach(c=>c.textContent=sym); }
+function esc(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+/* ---------- animation helpers ---------- */
+function countUp(node, to, prefix="", suffix=""){
+  to = Number(to)||0; const dur=750, s=performance.now();
+  (function st(t){ const p=Math.min(1,(t-s)/dur); const v=Math.round(to*(1-Math.pow(1-p,3))); node.textContent = prefix + v.toLocaleString("en-IN") + suffix; if(p<1) requestAnimationFrame(st); })(performance.now());
+}
+function confettiBurst(){
+  const box = el("confetti"); if(!box) return;
+  const colors=["#7c3aed","#ec4899","#22c55e","#f59e0b","#3b82f6"];
+  for(let i=0;i<44;i++){ const p=document.createElement("i"); p.style.left=Math.random()*100+"vw"; p.style.background=colors[i%colors.length]; p.style.animationDuration=(2+Math.random()*1.6)+"s"; p.style.animationDelay=(Math.random()*.35)+"s"; box.appendChild(p); setTimeout(()=>p.remove(),4000); }
+}
+document.addEventListener("click", (e)=>{
+  const b = e.target.closest(".btn"); if(!b) return;
+  const r = document.createElement("span"); r.className="rp";
+  const rect = b.getBoundingClientRect(); const size = Math.max(rect.width, rect.height);
+  r.style.width = r.style.height = size+"px"; r.style.left=(e.clientX-rect.left-size/2)+"px"; r.style.top=(e.clientY-rect.top-size/2)+"px";
+  b.appendChild(r); setTimeout(()=>r.remove(),600);
+});
+
+/* ---------- generic rows ---------- */
+function addRow(container, label="", amount="", onChange){
+  const ln = document.createElement("div");
+  ln.className = "ln";
+  ln.innerHTML = `<input type="text" class="lbl" placeholder="e.g. Rent" value="${esc(label)}" />
+    <div class="m"><span class="cur">${currency}</span><input type="number" class="amt" placeholder="0" min="0" inputmode="decimal" value="${amount}" /></div>
+    <button class="rm">×</button>`;
+  ln.querySelector(".rm").onclick = () => { ln.remove(); onChange && onChange(); };
+  ln.querySelector(".amt").addEventListener("input", () => onChange && onChange());
+  container.appendChild(ln);
+}
+function readRows(container){
+  return Array.from(container.querySelectorAll(".ln")).map(ln => ({ label: ln.querySelector(".lbl").value.trim()||"Expense", amount: parseFloat(ln.querySelector(".amt").value)||0 })).filter(x=>x.amount>0);
+}
+function discFrom(incomeEl, fixedEl){
+  const income = parseFloat(el(incomeEl).value)||0;
+  const fixed = readRows(el(fixedEl)).reduce((a,f)=>a+f.amount,0);
+  return Math.max(0, income - fixed);
+}
+function updateWallet(){
+  const budget = (profile.income||0) - (profile.fixed||[]).reduce((a,f)=>a+(f.amount||0),0);
+  const spent = readRows(el("spendList")).reduce((a,s)=>a+s.amount,0);
+  el("walletValue").textContent = profile.income ? fmt(Math.max(0, budget - spent)) : "—";
+}
+
+/* ---------- goals rendering (shared) ---------- */
+function renderGoalList(container){
+  container.innerHTML = goals.length ? "" : `<div class="empty">No goals yet.</div>`;
+  goals.forEach(g => {
+    const pct = g.target ? Math.min(100, Math.round(g.saved/g.target*100)) : 0;
+    const d = document.createElement("div");
+    d.className = "goal";
+    d.innerHTML = `<div class="top"><div class="nm">${esc(g.name)}</div><button class="del">remove</button></div>
+      <div class="amt">${fmt(g.saved)} of ${fmt(g.target)} · ${pct}%</div>
+      <div class="bar"><i style="width:${pct}%"></i></div>`;
+    d.querySelector(".del").onclick = async () => { await api("/api/goals/"+g.id,{method:"DELETE"}); goals=goals.filter(x=>x.id!==g.id); renderAllGoals(); };
+    container.appendChild(d);
+  });
+}
+function renderAllGoals(){ renderGoalList(el("ob_goalsList")); renderGoalList(el("pf_goalsList")); }
+async function addGoal(nameEl, targetEl, savedEl){
+  const name = el(nameEl).value.trim();
+  const target = parseFloat(el(targetEl).value)||0;
+  const saved = parseFloat(el(savedEl).value)||0;
+  if(!name || !target){ alert("Enter a goal name and target amount."); return; }
+  const r = await api("/api/goals", { method:"POST", body: JSON.stringify({ name, target, saved }) });
+  goals = r.goals; renderAllGoals();
+  el(nameEl).value=""; el(targetEl).value=""; el(savedEl).value="";
+}
+
+/* ---------- profile save (shared) ---------- */
+async function saveProfileFrom(incomeEl, fixedEl){
+  profile = { income: parseFloat(el(incomeEl).value)||0, fixed: readRows(el(fixedEl)), currency };
+  await api("/api/profile", { method:"POST", body: JSON.stringify(profile) });
+  updateWallet(); renderSpendTally();
+}
+
+/* ---------- onboarding ---------- */
+el("ob_addFixed").onclick = () => addRow(el("ob_fixedList"),"","",()=>{ el("ob_disc").textContent = el("ob_income").value ? fmt(discFrom("ob_income","ob_fixedList")) : "—"; });
+el("ob_income").addEventListener("input", () => { el("ob_disc").textContent = el("ob_income").value ? fmt(discFrom("ob_income","ob_fixedList")) : "—"; });
+el("ob_addGoal").onclick = () => addGoal("ob_goalName","ob_goalTarget","ob_goalSaved");
+el("ob_continue").onclick = async () => {
+  await saveProfileFrom("ob_income","ob_fixedList");
+  localStorage.setItem("sib_onboarded","1");
+  enterApp("decide");
+};
+el("ob_skip").onclick = () => { localStorage.setItem("sib_onboarded","1"); enterApp("decide"); };
+
+/* ---------- profile tab ---------- */
+el("pf_addFixed").onclick = () => addRow(el("pf_fixedList"),"","",()=>{ el("pf_disc").textContent = el("pf_income").value ? fmt(discFrom("pf_income","pf_fixedList")) : "—"; });
+el("pf_income").addEventListener("input", () => { el("pf_disc").textContent = el("pf_income").value ? fmt(discFrom("pf_income","pf_fixedList")) : "—"; });
+el("pf_addGoal").onclick = () => addGoal("pf_goalName","pf_goalTarget","pf_goalSaved");
+el("pf_save").onclick = async () => {
+  await saveProfileFrom("pf_income","pf_fixedList");
+  const s = el("pf_saved"); s.style.display="inline"; setTimeout(()=>s.style.display="none",1500);
+};
+
+/* ---------- spending tally ---------- */
+el("addSpend").onclick = () => addRow(el("spendList"),"","",renderSpendTally);
+el("price").addEventListener("input", renderSpendTally);
+function renderSpendTally(){
+  const budget = (profile.income||0) - (profile.fixed||[]).reduce((a,f)=>a+(f.amount||0),0);
+  const spent = readRows(el("spendList")).reduce((a,s)=>a+s.amount,0);
+  const price = parseFloat(el("price").value)||0;
+  const left = budget - spent;
+  el("tBudget").textContent = budget>0 ? fmt(budget) : "—";
+  el("tSpent").textContent = spent ? fmt(spent) : "—";
+  el("tLeft").textContent = budget>0 ? fmt(left) : "—";
+  if(price && left>0) el("tShare").textContent = `${fmt(price)} · ${Math.round(price/left*100)}% of what's left`;
+  else if(price && budget>0) el("tShare").textContent = `${Math.round(price/budget*100)}% of budget`;
+  else el("tShare").textContent = price ? fmt(price) : "—";
+  updateWallet();
+}
+
+/* ---------- price detection ---------- */
+async function detect(){
+  const url = el("url").value.trim();
+  const errEl = el("urlErr"); errEl.style.display="none";
+  if(!/^https?:\/\//i.test(url)){ errEl.textContent="Paste a full link starting with http…"; errEl.style.display="block"; return; }
+  const btn = el("detectBtn"); btn.disabled=true; btn.textContent="…";
+  const pc = el("productCard");
+  pc.classList.add("show"); el("pvImg").src="icons/icon.svg";
+  el("pvTitle").textContent="Loading product…"; el("pvPrice").textContent="₹0000";
+  el("pvTitle").classList.add("skeleton"); el("pvPrice").classList.add("skeleton");
+  try{
+    const data = await api("/api/price", { method:"POST", body: JSON.stringify({ url }) });
+    el("pvTitle").classList.remove("skeleton"); el("pvPrice").classList.remove("skeleton");
+    if(data.currencySymbol) setCurrency(data.currencySymbol);
+    if(data.title) el("product").value = data.title;
+    if(data.price) el("price").value = data.price;
+    if(data.title || data.price){
+      el("pvImg").src = data.image || "icons/icon.svg";
+      el("pvTitle").textContent = data.title || "Product";
+      el("pvPrice").innerHTML = data.price ? fmt(data.price) : `<small>Price not found — enter it below</small>`;
+    } else { pc.classList.remove("show"); }
+    if(!data.price){ errEl.textContent="Couldn't read the price — type it in below."; errEl.style.display="block"; }
+    renderSpendTally();
+  }catch(e){ pc.classList.remove("show"); el("pvTitle").classList.remove("skeleton"); el("pvPrice").classList.remove("skeleton"); errEl.textContent="Couldn't fetch that page. Enter details manually."; errEl.style.display="block"; }
+  finally{ btn.disabled=false; btn.textContent="Detect"; }
+}
+el("detectBtn").onclick = detect;
+el("url").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); detect(); }});
+
+/* ---------- ask ---------- */
+async function ask(){
+  const err = el("askErr"); err.style.display="none";
+  const product = el("product").value.trim();
+  const price = parseFloat(el("price").value)||0;
+  if(!product){ err.textContent="Add the product name."; err.style.display="block"; return; }
+  if(!price){ err.textContent="Add the price."; err.style.display="block"; return; }
+  const spending = readRows(el("spendList"));
+  const payload = { currency, product, product_url: el("url").value.trim()||null, price, spent_this_month: spending.reduce((a,s)=>a+s.amount,0), recent_expenses: spending };
+  el("flow").style.display="none"; el("loading").style.display="block"; el("result").style.display="none";
+  try{ showResult(await api("/api/decide",{ method:"POST", body: JSON.stringify(payload) })); }
+  catch(e){ el("loading").style.display="none"; el("flow").style.display="block"; err.textContent=e.message; err.style.display="block"; }
+}
+el("askBtn").onclick = ask;
+
+function showResult(out){
+  el("loading").style.display="none"; el("result").style.display="block";
+  const v=(out.verdict||"").toLowerCase();
+  const kind=(v.includes("don't")||v.includes("dont"))?"dont":v.includes("wait")?"wait":"buy";
+  const vc = el("verdictCard");
+  vc.className="verdict-card "+kind;
+  vc.classList.remove("pop","shake"); void vc.offsetWidth; vc.classList.add("pop");
+  if(kind==="buy") confettiBurst();
+  if(kind==="dont") vc.classList.add("shake");
+  el("verdictCat").textContent = out.category ? `${out.category} · our take` : "our take";
+  el("verdictWord").textContent = out.verdict || "—";
+  el("verdictHead").textContent = out.headline || "";
+  if(out.confidence!=null) countUp(el("verdictConf"), out.confidence, "", "% confident"); else el("verdictConf").textContent="";
+  el("impactText").textContent = out.budget_impact || ""; el("pillBudget").style.display = out.budget_impact?"flex":"none";
+  el("goalText").textContent = out.goal_impact || ""; el("pillGoal").style.display = out.goal_impact?"flex":"none";
+  el("cpuText").textContent = out.cost_per_use || ""; el("pillCpu").style.display = out.cost_per_use?"flex":"none";
+  fill("forList", out.reasons_for); fill("againstList", out.reasons_against);
+  el("reasoning").textContent = out.reasoning || "";
+  const alts = out.alternatives||[];
+  el("alts").innerHTML = alts.length ? `<b>Alternatives:</b><br>${alts.map(a=>`<span class="alt-chip">${esc(a)}</span>`).join("")}` : "";
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function fill(id, items){ el(id).innerHTML=(items||[]).map(x=>`<li>${esc(x)}</li>`).join("")||"<li>—</li>"; }
+el("againBtn").onclick = () => {
+  el("result").style.display="none"; el("flow").style.display="block";
+  el("url").value=""; el("product").value=""; el("price").value=""; el("productCard").classList.remove("show");
+  renderSpendTally(); window.scrollTo({top:0,behavior:"smooth"});
+};
+
+/* ---------- nav ---------- */
+document.querySelectorAll(".navbtn").forEach(b => b.onclick = () => enterApp(b.dataset.view));
+function enterApp(view){
+  el("onboarding").style.display="none";
+  el("appNav").style.display="block";
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-"+view));
+  document.querySelectorAll(".navbtn").forEach(b => b.classList.toggle("active", b.dataset.view===view));
+  if(view==="dash") loadDashboard();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+/* ---------- dashboard ---------- */
+async function loadDashboard(){
+  try{
+    const { decisions, stats } = await api("/api/history");
+    countUp(el("dashSaved"), stats.moneySaved, currency);
+    el("dashSavedSub").textContent = stats.moneySavedCount ? `across ${stats.moneySavedCount} purchase(s) you skipped or paused` : "Start deciding to build your savings";
+    countUp(el("dashDecisions"), stats.totalDecisions);
+    countUp(el("dashBought"), stats.moneySpent||0, currency);
+    const cats = Object.entries(stats.byCategory||{}).sort((a,b)=>b[1].total-a[1].total);
+    const max = cats.length ? cats[0][1].total : 0;
+    el("catBreakdown").innerHTML = cats.length ? cats.map(([c,v])=>`<div class="cat-row"><div class="nm">${esc(c)}</div><div class="bar"><i style="width:${max?Math.round(v.total/max*100):0}%"></i></div><div class="amt">${fmt(v.total)}</div></div>`).join("") : `<div class="empty">No decisions yet.</div>`;
+    el("historyList").innerHTML = decisions.length ? decisions.slice(0,30).map(d=>{
+      const dv=(d.verdict||"").toLowerCase(); const k=(dv.includes("don't")||dv.includes("dont"))?"dont":dv.includes("wait")?"wait":"buy";
+      const when = new Date(d.ts).toLocaleDateString("en-IN",{day:"numeric",month:"short"});
+      return `<div class="hist"><div><div class="nm">${esc(d.product)}</div><div class="meta">${esc(d.category||"Other")} · ${fmt(d.price)} · ${when}</div></div><span class="vbadge ${k}">${esc(d.verdict||"")}</span></div>`;
+    }).join("") : `<div class="empty">Your past checks will show up here.</div>`;
+  }catch(e){}
+}
+
+/* ---------- init ---------- */
+async function init(){
+  try{
+    const data = await api("/api/profile");
+    profile = data.profile || profile;
+    goals = data.goals || [];
+    if(profile.currency) setCurrency(profile.currency);
+    // hydrate profile tab
+    el("pf_income").value = profile.income || "";
+    (profile.fixed||[]).forEach(f => addRow(el("pf_fixedList"), f.label, f.amount, ()=>{ el("pf_disc").textContent = el("pf_income").value ? fmt(discFrom("pf_income","pf_fixedList")) : "—"; }));
+    if(profile.income) el("pf_disc").textContent = fmt(discFrom("pf_income","pf_fixedList"));
+    renderAllGoals();
+  }catch(e){}
+
+  const onboarded = localStorage.getItem("sib_onboarded") || (profile.income>0);
+  addRow(el("spendList"),"Food & essentials","",renderSpendTally);
+  if(onboarded){ enterApp("decide"); }
+  else {
+    el("onboarding").style.display="block";
+    addRow(el("ob_fixedList"),"Rent","",()=>{ el("ob_disc").textContent = el("ob_income").value ? fmt(discFrom("ob_income","ob_fixedList")) : "—"; });
+  }
+  updateWallet(); renderSpendTally();
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+init();
+</script>
+</body>
+</html>
