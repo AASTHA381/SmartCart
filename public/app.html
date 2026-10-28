@@ -488,11 +488,224 @@ const UID = (() => {
   if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : "u-"+Date.now()+"-"+Math.random().toString(36).slice(2)); localStorage.setItem("sib_uid", id); }
   return id;
 })();
+function localStoreGet() {
+  try { return JSON.parse(localStorage.getItem("sib_local_db") || "{}") || {}; } catch { return {}; }
+}
+function localStoreSave(db) {
+  try { localStorage.setItem("sib_local_db", JSON.stringify(db)); } catch {}
+}
+function localCategorize(name) {
+  const s = (name || "").toLowerCase();
+  if (/iphone|macbook|laptop|airpods|phone|watch|ipad|headphone|sony|samsung|camera|tv|speaker|earbud|monitor|keyboard|mouse/.test(s)) return "Electronics";
+  if (/shoe|shirt|dress|jacket|jeans|bag|sneaker|watch|zara|myntra|nike|adidas|apparel|kurta/.test(s)) return "Fashion";
+  if (/flight|hotel|trip|trek|vacation|airbnb|ticket/.test(s)) return "Travel";
+  if (/book|course|udemy|coursera|study|class/.test(s)) return "Education";
+  if (/dinner|coffee|swiggy|zomato|restaurant|food|cafe/.test(s)) return "Food";
+  if (/chair|desk|lamp|sofa|mattress|vacuum|appliance/.test(s)) return "Home";
+  return "Other";
+}
+function localDecideEngine(body, db) {
+  const prof = db.profile || { income: 60000, fixed: [{ label: "Rent & Bills", amount: 22000 }], currency: body.currency || "₹" };
+  const goalsList = db.goals || [];
+  const cur = body.currency || prof.currency || "₹";
+  const price = Number(body.price) || 0;
+  const prod = body.product || "Item";
+  const cat = localCategorize(prod);
+  const fixedTotal = (prof.fixed || []).reduce((a, f) => a + (Number(f.amount) || 0), 0);
+  const discBudget = Math.max(0, (Number(prof.income) || 0) - fixedTotal);
+  const spent = Number(body.spent_this_month) || 0;
+  const remaining = discBudget > 0 ? Math.max(0, discBudget - spent) : 25000;
+  const ratio = remaining > 0 ? price / remaining : (discBudget > 0 ? price / discBudget : price / 25000);
+
+  let verdict = "Buy", confidence = 84;
+  if (ratio > 0.75 || (discBudget > 0 && price > remaining)) {
+    verdict = "Don't buy";
+    confidence = Math.min(96, Math.round(75 + ratio * 12));
+  } else if (ratio > 0.30 || price >= 8000) {
+    verdict = "Wait";
+    confidence = 82;
+  }
+
+  const fmtM = (n) => cur + Math.round(n).toLocaleString("en-IN");
+  const dailyCost = Math.max(1, Math.round(price / 365));
+  const topGoal = goalsList[0];
+  const goalImpact = topGoal
+    ? `This equals ${Math.min(100, Math.round((price / Math.max(1, topGoal.target - (topGoal.saved || 0))) * 100))}% of what you still need for "${topGoal.name}" (${fmtM(topGoal.target)}).`
+    : `Redirecting ${fmtM(price)} into an emergency or index fund compounds meaningfully over 12 months.`;
+
+  const out = {
+    verdict,
+    confidence,
+    category: cat,
+    headline: verdict === "Buy"
+      ? `${prod} fits comfortably within your remaining monthly cushion.`
+      : verdict === "Wait"
+      ? `Hold off for 14 days — ${prod} takes ${Math.round(ratio * 100)}% of your remaining discretionary budget.`
+      : `Skip ${prod} right now — it exceeds your safe spending runway this month.`,
+    budget_impact: discBudget > 0
+      ? `At ${fmtM(price)}, this consumes ${Math.round((price / Math.max(1, remaining)) * 100)}% of your ${fmtM(remaining)} remaining discretionary budget (out of ${fmtM(discBudget)}/mo).`
+      : `At ${fmtM(price)}, set your monthly income & fixed bills in the Profile tab to see exact discretionary impact.`,
+    goal_impact: goalImpact,
+    cost_per_use: `~${fmtM(dailyCost)}/day if used daily over 1 year (${fmtM(Math.round(price / 12))}/mo).`,
+    reasons_for: [
+      cat === "Electronics" || cat === "Education" || cat === "Home"
+        ? `High utility potential in ${cat} if it replaces a daily bottleneck.`
+        : `Manageable per-use cost (${fmtM(dailyCost)}/day) if used consistently.`,
+      remaining >= price
+        ? `You can pay cash upfront (${fmtM(remaining - price)} left in this month's buffer) without EMI debt.`
+        : `Clear product specification makes it easy to track for a 20–30% seasonal discount.`
+    ],
+    reasons_against: [
+      `Immediate outflow of ${fmtM(price)} reduces your liquid buffer for unexpected expenses.`,
+      topGoal ? `Delays reaching your "${topGoal.name}" target.` : `High impulse-buy risk if not planned at least 7 days ago.`
+    ],
+    alternatives: [
+      `Wait for a 15–25% sale or refurbished/open-box unit (~${fmtM(price * 0.78)})`,
+      `Use a 30-day cool-off rule via Watchlist before paying ${fmtM(price)}`
+    ],
+    reasoning: `${prod} (${fmtM(price)}) represents ${Math.round(ratio * 100)}% of your available monthly cushion. ${
+      verdict === "Buy"
+        ? "Because your fixed obligations are covered and this leaves healthy breathing room, buying now is financially sound."
+        : verdict === "Wait"
+        ? "While technically affordable, a purchase of this size benefits from a cooling-off period to verify genuine need and catch price drops."
+        : "Purchasing this right now would wipe out your discretionary margin and crowd out higher-priority savings goals."
+    }`
+  };
+
+  db.decisions = db.decisions || [];
+  db.decisions.unshift({
+    id: "d_" + Date.now().toString(36),
+    ts: Date.now(),
+    product: prod,
+    url: body.product_url || null,
+    category: cat,
+    price,
+    currency: cur,
+    verdict,
+    confidence
+  });
+  localStoreSave(db);
+  return out;
+}
+
+function localApiFallback(path, opts = {}) {
+  const method = (opts.method || "GET").toUpperCase();
+  const body = opts.body ? JSON.parse(opts.body) : {};
+  const db = localStoreGet();
+  db.profile = db.profile || { income: 0, fixed: [], currency: "₹" };
+  db.goals = db.goals || [];
+  db.decisions = db.decisions || [];
+  db.watchlist = db.watchlist || [];
+
+  if (path === "/api/profile" && method === "GET") {
+    return { profile: db.profile, goals: db.goals };
+  }
+  if (path === "/api/profile" && method === "POST") {
+    db.profile = { income: Number(body.income) || 0, fixed: body.fixed || [], currency: body.currency || "₹" };
+    localStoreSave(db);
+    return { ok: true, profile: db.profile };
+  }
+  if (path === "/api/goals" && method === "POST") {
+    db.goals.push({ id: "g_" + Date.now().toString(36), name: body.name, target: Number(body.target) || 0, saved: Number(body.saved) || 0 });
+    localStoreSave(db);
+    return { goals: db.goals };
+  }
+  if (path.startsWith("/api/goals/") && method === "DELETE") {
+    const gid = path.split("/").pop();
+    db.goals = db.goals.filter(g => g.id !== gid);
+    localStoreSave(db);
+    return { goals: db.goals };
+  }
+  if (path === "/api/price" && method === "POST") {
+    const u = String(body.url || "");
+    let slug = "";
+    try {
+      const parsed = new URL(u);
+      const segs = parsed.pathname.split("/").filter(Boolean);
+      slug = (segs.find(s => s.length > 5 && !/^(dp|gp|p|product|item|buy)$/i.test(s)) || parsed.hostname.replace(/^www\./, "")).replace(/[-_]+/g, " ");
+      slug = slug.replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60);
+    } catch {}
+    return { price: null, title: slug || null, detected: false, currencySymbol: "₹" };
+  }
+  if (path === "/api/decide" && method === "POST") {
+    return localDecideEngine(body, db);
+  }
+  if (path === "/api/compare" && method === "POST") {
+    const aOut = localDecideEngine({ currency: body.currency, product: body.product_a, price: body.price_a, spent_this_month: body.spent_this_month }, db);
+    const bOut = localDecideEngine({ currency: body.currency, product: body.product_b, price: body.price_b, spent_this_month: body.spent_this_month }, db);
+    const pa = Number(body.price_a) || 0, pb = Number(body.price_b) || 0;
+    const win = (aOut.verdict === "Don't buy" && bOut.verdict === "Don't buy") ? "Neither" : (pa <= pb ? "A" : "B");
+    return {
+      winner: win,
+      headline: win === "A" ? `${body.product_a} is the smarter financial pick` : win === "B" ? `${body.product_b} gives better budget headroom` : "Skip both for now to protect your budget",
+      recommendation: `Comparing ${body.product_a} (${body.currency || "₹"}${pa.toLocaleString("en-IN")}) vs ${body.product_b} (${body.currency || "₹"}${pb.toLocaleString("en-IN")}) against your monthly cashflow.`,
+      a: { verdict: aOut.verdict, note: aOut.headline },
+      b: { verdict: bOut.verdict, note: bOut.headline },
+      reasoning: `${aOut.budget_impact} Meanwhile, ${bOut.budget_impact}`
+    };
+  }
+  if (path === "/api/history" && method === "GET") {
+    const decs = db.decisions || [];
+    let moneySaved = 0, moneySavedCount = 0, moneySpent = 0;
+    const byCategory = {};
+    decs.forEach(d => {
+      const v = (d.verdict || "").toLowerCase();
+      if (v.includes("wait") || v.includes("don")) { moneySaved += (Number(d.price) || 0); moneySavedCount++; }
+      else { moneySpent += (Number(d.price) || 0); }
+      const c = d.category || "Other";
+      byCategory[c] = byCategory[c] || { total: 0, count: 0 };
+      byCategory[c].total += (Number(d.price) || 0);
+      byCategory[c].count++;
+    });
+    return { decisions: decs, stats: { moneySaved, moneySavedCount, moneySpent, totalDecisions: decs.length, byCategory } };
+  }
+  if (path === "/api/watchlist" && method === "POST") {
+    const item = {
+      id: "w_" + Date.now().toString(36),
+      addedTs: Date.now(),
+      product: body.product,
+      url: body.url || null,
+      startPrice: Number(body.price) || 0,
+      lastPrice: Number(body.price) || 0,
+      currency: body.currency || "₹",
+      category: body.category || "Other",
+      verdict: body.verdict || "Wait",
+      trackable: !!body.url,
+      drop: 0,
+      dropPct: 0,
+      reminderDue: false
+    };
+    db.watchlist.unshift(item);
+    localStoreSave(db);
+    return { item, watchlist: db.watchlist };
+  }
+  if ((path === "/api/watchlist" || path === "/api/watchlist/refresh") && (method === "GET" || method === "POST")) {
+    return { watchlist: db.watchlist || [] };
+  }
+  if (path.startsWith("/api/watchlist/") && method === "DELETE") {
+    const wid = path.split("/").pop();
+    db.watchlist = (db.watchlist || []).filter(w => w.id !== wid);
+    localStoreSave(db);
+    return { watchlist: db.watchlist };
+  }
+  return {};
+}
+
 async function api(path, opts = {}) {
-  const res = await fetch(path, { ...opts, headers: { "content-type":"application/json", "x-user-id":UID, ...(opts.headers||{}) } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Request failed");
-  return data;
+  try {
+    const res = await fetch(path, { ...opts, headers: { "content-type":"application/json", "x-user-id":UID, ...(opts.headers||{}) } });
+    const ct = res.headers.get("content-type") || "";
+    if (res.ok && ct.includes("application/json")) {
+      return await res.json();
+    }
+    if (res.status === 404 || res.status === 405 || !ct.includes("application/json")) {
+      return localApiFallback(path, opts);
+    }
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Request failed");
+  } catch (e) {
+    return localApiFallback(path, opts);
+  }
 }
 function fmt(n){ return currency + Number(n||0).toLocaleString("en-IN"); }
 function setCurrency(sym){ if(!sym) return; currency = sym; document.querySelectorAll(".cur,.cur-price").forEach(c=>c.textContent=sym); }
